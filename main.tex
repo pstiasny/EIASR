@@ -1,0 +1,249 @@
+%++++++++++++++++++++++++++++++++++++++++
+% Don't modify this section unless you know what you're doing!
+\documentclass[letterpaper,12pt]{article}
+\usepackage{tabularx} % extra features for tabular environment
+\usepackage{amsmath}  % improve math presentation
+\usepackage{graphicx} % takes care of graphic including machinery
+\usepackage{subfig}
+\usepackage[margin=1in,letterpaper]{geometry} % decreases margins
+\usepackage{cite} % takes care of citations
+\usepackage[final]{hyperref} % adds hyper links inside the generated pdf file
+\hypersetup{
+	colorlinks=true,       % false: boxed links; true: colored links
+	linkcolor=blue,        % color of internal links
+	citecolor=blue,        % color of links to bibliography
+	filecolor=magenta,     % color of file links
+	urlcolor=blue         
+}
+%++++++++++++++++++++++++++++++++++++++++
+
+
+\begin{document}
+
+\title{Detection and localization of a 2-D contour with GHT}
+\author{E. Hyrol and P. Stiasny}
+\date{28.11.2016}
+\maketitle
+
+\begin{abstract}
+
+\end{abstract}
+
+
+\section{Introduction}
+
+
+\section{Theory}
+
+\subsection{Image edge detection}
+
+A pre-processing step in edge detection: a smoothing operation in order to remove noise (spiky-like variations) from the image.
+
+
+\begin{figure}[!th]
+  \centering
+  \subfloat[Desired edge.]{\includegraphics[width=0.4\textwidth]{desired_edge}\label{fig:d_edge}}
+  \hfill
+  \subfloat[Real edge.]{\includegraphics[width=0.4\textwidth]{real_edge}\label{fig:r_edge}}
+  \caption{Example edges.}
+\end{figure}
+
+\textbf{Basic types of image edge detectors: }
+
+\begin{itemize}
+	\item discrete image function gradients
+	\item convolution kernels
+ 	\item using parametric edge models
+ 	\item mixed approaches
+
+\end{itemize}
+
+
+
+\subsection{Sobel Edge Detection}
+
+The Sobel operator is used in image processing, particularly within edge detection algorithms. It falls into a group of convolution-based edge detectors. Technically, it is a discrete differentiation operator, computing an approximation of the gradient of the image intensity function. At each point in the image, the result of the Sobel operator is either the corresponding gradient vector or the norm of this vector. The Sobel operator is based on convolving the image with a small, separable, and integer valued filter in horizontal and vertical direction and is therefore relatively inexpensive in terms of computations. On the other hand, the gradient approximation that it produces is relatively crude, in particular for high frequency variations in the image.
+
+\[	
+  	\Delta x = \begin{bmatrix}
+  	-1 & 0 & 1 \\
+  	-2 & 0 & 2 \\
+  	-1 & 0 & 1
+	\end{bmatrix}, \quad
+	\Delta y = \begin{bmatrix}
+  	1 & 2 & 1 \\
+  	0 & 0 & 0 \\
+  	-1 & -2 & -1
+	\end{bmatrix}
+\]
+
+\textbf{Characteristics:} different input-output image, e.g. maximum strength: 2040 for 8-bit input image, simple implementation, good results.
+
+
+\subsection{Scharr Edge detection}
+
+Scharr operator is similar to the Sober operator having the following kernel:
+
+\[	
+  	G_x = \begin{bmatrix}
+  	-3 & 0 & 3 \\
+  	-10 & 0 & 10 \\
+  	-3 & 0 & 3
+	\end{bmatrix}, \quad
+	G_y = \begin{bmatrix}
+  	-3 & -10 & -3 \\
+  	0 & 0 & 0 \\
+  	3 & 10 & 3
+	\end{bmatrix}
+\]
+
+Comparing with Sobel operators we see that they look similar, but Sobel weight matrix is isotropic and Scharr weight matrix is anisotropic.
+					
+Scharr operators result from an optimization minimizing weighted mean squared angular error in Fourier domain. This optimization is done under the condition that resulting filters are numerically consistent. Therefore they really are derivative kernels rather than merely keeping symmetry constraints.
+
+
+\subsection{Edge thinning}
+
+\textbf{Threshold-based edge elimination.} This simple edge thinning method is an edge elimination operator with a minimum threshold parameter $\theta$. The threshold is either fixed or set adaptively (e.g. $\theta = \gamma S_{max}$, where $ \gamma \in(0,1)$).
+
+\begin{equation}
+s_{thin}(P) = \begin{cases}
+	s(P), & \text{if}\ s(P) > \theta	\\
+	0, & \text{otherwise}
+\end{cases}
+\label{ncc}
+\end{equation}
+
+\textbf{No-maximum edge elimination.} It depends on a check in the local neighborhood of given pixel P:
+
+\begin{gather}
+	IF(s(P)\geq s(N_L) OR |r(P)-r(N_L)|\geq T)\
+	AND\ (s(P)\geq s(N_R)OR |r(P)-r(N_R)|\geq T)\\
+	THEN s(P)_{THIN}=s(P):
+	ELSE s(p)_{THIN}=0;
+\end{gather}
+
+\begin{figure}[!th]
+  \centering
+  {\includegraphics[width=0.6\textwidth]{edge_thin_neghb}\label{fig:edge_thin_n}}
+    \caption{No-maximum edge elimination.}
+  \end{figure}
+
+
+\textbf{Edge modification.}A local neighborhood-based modification of edge at pixel P:
+\begin{itemize}
+	\item if P is the strongest edge element in the set: P, NL, NR , then:\[ s^{'} (P)=s(P)+ \alpha(s(N_L)+s(N_R ))\]
+	\item if P is the weakest edge element in the above set then:\[s^{'}(P) = s(P) - 2 \alpha s(P) \]
+	\item if one neighbour of P (denoted by $P^+$ ) is a stronger edge and another neighbour of P (denoted by $P^-$ ) is a weaker edge element then:\[s^{'}(P) = s(P) - \alpha s(P^+) + \alpha s(P^-).\]
+\end{itemize}
+
+Several iterations over the whole image may be necessary.\\
+
+\textbf{Edge elimination with hysteresis threshold.} This edge thinning method works with two edge strength thresholds: \textbf{the upper $\theta_H$} and \textbf{the lower $\theta_L$}.In the first run these edge pixels are individually marked as "good" that have higher strengths than the upper threshold.In the next run these "good" pixels are tried to be “extended” along a potential contour line in both directions (“positive” and “negative” line direction). For a single extension, the neighbour pixel needs to have a higher strength than the lower threshold.
+\underline{Remark:} Now the neighbours are not competing with each other and they are searched along the expected contour line (not across it).
+
+
+\subsection{Edge chain following}
+
+\underline{Principle:} searching for extension of current edge pixel $P=P_{-cur}$ by its successor edge $N=c(P_{cur})$.Two neighbour edge elements can be linked if the edge magnitude (strength) and direction differences are below certain thresholds and their magnitudes are relatively large:
+
+\begin{gather}
+	|s(P)-s(N)|\leq T_1 \\
+	|r(P)-r(N)|\ mod\ 2\pi\leq T_2 \\
+	|s(P)|>T,\ |s(N)|>T
+\end{gather}
+
+Denote the 3 nearest pixel along the direction $r(P)$ as: $N_1, N_2, N_3$. The successor of $P_{-cur}$: an edge element Ni whose strength and orientation are most similar to $P_{-cur}$.
+
+\textbf{Successor candidates}. Three candidates for a successor of pixel P:
+
+\begin{figure}[!th]
+  \centering
+  {\includegraphics[width=0.5\textwidth]{succ_cand1}\label{fig:succ_cand1}}
+%    \caption{No-maximum edge elimination.}
+  \end{figure}
+
+Closing a gap for edge pixel P in directions (left) $0^\circ$ and (right) $45^\circ$:
+\begin{figure}[!th]
+  \centering
+  {\includegraphics[width=0.5\textwidth]{succ_cand2}\label{fig:succ_cand2}}
+%    \caption{No-maximum edge elimination.}
+  \end{figure}
+  
+  
+\textbf{The hysteresis threshold method}.
+Contrast (edge strength) may be different in different points of the contour. Careful thresholding of $M(x,y)$ is needed to remove  weak edges while preserving the connectivity of the contours.
+
+Hysteresis thresholding receives the output of the non-maxima suppression, $M_{NMS}(x,y)$.
+
+The algorithm uses 2 thresholds, $T_{high}$ and $T_{low}$:
+
+\begin{itemize}
+	\item A pixel $(x,y)$ is called strong if $M_{NMS}(x,y) > T_{high}$.
+	\item A pixel $(x,y)$ is called weak if $M_{NMS}(x,y) \leq T_{low}$.
+	\item All other pixels are called candidate pixels.
+\end{itemize}
+
+The algorithm has the following steps:
+\begin{enumerate}
+
+
+	\item  In each position of $(x,y)$, discard the pixel $(x,y)$ if it is weak; output the pixel if it is strong.
+	\item If the pixel is a candidate, follow the chain of connected local maxima in both directions along the edge, as long as $M_{NMS}(x,y) > T_{low}$.
+	\item If the starting candidate pixel $(x,y)$ is connected to a strong pixel, output this candidate pixel; otherwise, do not output the candidate pixel.
+\end{enumerate}
+
+An example can be observed on Figure \ref{fig:edge_chain_labs}.
+
+\begin{figure}[!th]
+  \centering
+  {\includegraphics[width=0.5\textwidth]{edge_chain_labs}}
+
+    \caption{Edge chain labels  	\label{fig:edge_chain_labs}}
+  \end{figure}
+
+
+\subsection{Contour detection by GHT}
+
+\textbf{Parameters of the Hough space:} $C = (x_C; y_C)$: location of the center mass, $s$ - scale, $\alpha$ - contour orientation angle.
+
+\textbf{Model learning (design).} For every pair of allowed discrete values $s_d$, $\alpha_g$ of scale and orientation, create a table $R(s_d, \alpha_g) = [ r( \varphi ), \varphi ]$, where for eachedge $x_B$ with edge direction $\varphi$ the pair:$[r(\varphi)=x_B - C, \varphi]$ is stored.
+
+
+\begin{figure}[h!]
+  \centering
+  \subfloat[Model contour.]{\includegraphics[width=0.4\textwidth]{ght_model_cont}\label{fig:ght_model_cont}}
+  \hfill
+  \subfloat[Candidate contour.]{\includegraphics[width=0.4\textwidth]{ght_candid_cont}\label{fig:ght_candid_cont}}
+  \caption{Example of GHT contour detection.}
+\end{figure}
+
+\section{Conclusions}
+Here you briefly summarize your findings.
+
+%++++++++++++++++++++++++++++++++++++++++
+% References section will be created automatically 
+% with inclusion of "thebibliography" environment
+% as it shown below. See text starting with line
+% \begin{thebibliography}{99}
+% Note: with this approach it is YOUR responsibility to put them in order
+% of appearance.
+
+\begin{thebibliography}{99}
+
+\bibitem{melissinos}
+A.~C. Melissinos and J. Napolitano, \textit{Experiments in Modern Physics},
+(Academic Press, New York, 2003).
+
+\bibitem{Cyr}
+N.\ Cyr, M.\ T$\hat{e}$tu, and M.\ Breton,
+% "All-optical microwave frequency standard: a proposal,"
+IEEE Trans.\ Instrum.\ Meas.\ \textbf{42}, 640 (1993).
+
+\bibitem{Wiki} \emph{Expected value},  available at
+\texttt{http://en.wikipedia.org/wiki/Expected\_value}.
+
+\end{thebibliography}
+
+
+\end{document}
