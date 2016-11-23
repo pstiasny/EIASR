@@ -218,8 +218,23 @@ An example can be observed on Figure \ref{fig:edge_chain_labs}.
   \caption{Example of GHT contour detection.}
 \end{figure}
 
-\section{Conclusions}
-Here you briefly summarize your findings.
+\section{Project implementation}
+
+For implementation we chose the Python programming language with appropriate OpenCV bindings. OpenCV-Python provides good integration with the NumPy library for efficient matrix operations which we will use when necessary.
+We plan to first prepare a prototype using existing solutions found in OpenCV, then incrementally implement our own components.
+
+The general algorithm we will implement is as follows:
+\begin{enumerate}
+    \item Perform edge detection using a convolution-based operator.
+        We will try at least Sobel and Scharr operators.
+
+    \item Perform edge thinning.
+
+    \item Perform edge chain detection by the hysteresis method.
+
+    \item Use the Generalized Hough Transform for contour localization.
+        We will first use a picture of a bottle for model learning. We will then apply GHT to find contours of said bottle.
+\end{enumerate}
 
 %++++++++++++++++++++++++++++++++++++++++
 % References section will be created automatically 
