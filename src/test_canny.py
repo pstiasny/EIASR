@@ -1,28 +1,30 @@
+from math import pi
+
 import numpy as np
 
 from canny import GradientImage, gradient, thin_nonmaximum
 
 
 def test_gradient():
-    in_ = np.array([
-        [20, 10,  0],
-        [30, 20, 10],
-        [40, 30, 20],
+    in1 = np.array([
+        [ 0,  0,  0],
+        [ 1,  1,  1],
+        [ 1,  1,  1],
     ])
+    out1 = gradient(in1)
+    assert out1.dxs[1, 1] == 0
+    assert out1.dys[1, 1] == 4
+    assert out1.angles[1, 1] == pi/2
 
-    out = gradient(in_)
-
-    assert np.all(out.dxs == np.array([
-        [-40,  60,  40],
-        [-80,  80,  80],
-        [-80,  60,  80],
-    ]))
-
-    assert np.all(out.dys == np.array([
-        [ 40,   0,   0],
-        [100,  40,  20],
-        [ 80,  80,  40],
-    ]))
+    in2 = np.array([
+        [ 0,  1,  1],
+        [ 0,  1,  1],
+        [ 0,  1,  1],
+    ])
+    out2 = gradient(in2)
+    assert out2.dxs[1, 1] == 4
+    assert out2.dys[1, 1] == 0
+    assert out2.angles[1, 1] == 0
 
 
 def test_thin_nonmaximum():
