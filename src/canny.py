@@ -19,17 +19,29 @@ SOBEL_Y = np.array([
 
 
 class GradientImage(object):
-    def __init__(self, dxs, dys):
-        self.dxs = dxs
-        self.dys = dys
-        self.magnitudes = np.sqrt(dxs ** 2 + dys ** 2)
-        self.angles = np.arctan2(dys, dxs)
+    def __init__(self, magnitudes, angles):
+        self.magnitudes = magnitudes
+        self.angles = angles
+
+    @property
+    def w(self):
+        return self.magnitudes.shape[0]
+
+    @property
+    def h(self):
+        return self.magnitudes.shape[1]
+
+    @classmethod
+    def from_partials(cls, dxs, dys):
+        magnitudes = np.sqrt(dxs ** 2 + dys ** 2)
+        angles = np.arctan2(dys, dxs)
+        return cls(magnitudes, angles)
 
 
 def gradient(in_):
-    return GradientImage(
-        convolve2d(in_, SOBEL_X, 'same'),
-        convolve2d(in_, SOBEL_Y, 'same'))
+    dxs = convolve2d(in_, SOBEL_X, 'same', 'symm')
+    dys = convolve2d(in_, SOBEL_Y, 'same', 'symm')
+    return GradientImage.from_partials(dxs, dys)
 
 
 def thin_nonmaximum(gradient_image):
@@ -45,7 +57,7 @@ def thin_nonmaximum(gradient_image):
         if s < s_nl or s < s_nr:
             thinned[idx] = 0
 
-    return thinned
+    return GradientImage(thinned, gradient_image.angles)
 
 
 def thin_hysteresis(high, low, magnitudes):
