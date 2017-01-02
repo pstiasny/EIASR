@@ -1,6 +1,7 @@
 from pickle import load
 from sys import argv
 
+import numpy as np
 from scipy.misc import imread, imsave
 
 from canny import gradient, thin_nonmaximum
@@ -14,4 +15,4 @@ if __name__ == '__main__':
     gradient_img = gradient(img)
     gradient_img = thin_nonmaximum(gradient_img)
     acc = hough_detect(rtable, gradient_img)
-    imsave(argv[3], acc[0, 0, :, :])
+    imsave(argv[3], np.sum(acc, axis=(0, 1)))

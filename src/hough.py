@@ -46,10 +46,8 @@ def hough_lines(mag, angles):
     return results
 
 
-#scales = [2**i for i in range(-3, 3)]
-#rotations = [i * (pi / 16) for i in range(0, 32)]
-scales = [1]
-rotations = [0]
+scales = [2**i for i in range(-3, 3)]
+rotations = [i * (pi / 32) for i in range(0, 64)]
 
 
 def hough_learn(img):
@@ -65,32 +63,38 @@ def hough_learn(img):
     )
     print 'center:', center[0], 'x', center[1]
 
-    for scale_idx, scale in enumerate(scales):
-        for rot_idx, rot in enumerate(rotations):
-            for (x, y), mag in np.ndenumerate(img.magnitudes):
-                if mag <= 0:
-                    continue
-                rx = int(center[0] - x)
-                ry = int(center[1] - y)
-                phi = discrete_direction(64, img.angles[x, y])
-                rtable[scale_idx, rot_idx, phi].append((rx, ry))
+    for (x, y), mag in np.ndenumerate(img.magnitudes):
+        if mag <= 0:
+            continue
+        rx = int(center[0] - x)
+        ry = int(center[1] - y)
+        phi = discrete_direction(64, img.angles[x, y])
+        rtable[phi].append((rx, ry))
     return rtable
 
 
 def hough_detect(rtable, img):
     acc = np.zeros((len(scales), len(rotations), img.w, img.h))
 
-    for scale_idx, scale in enumerate(scales):
-        for rot_idx, rot in enumerate(rotations):
-            for (x, y), mag in np.ndenumerate(img.magnitudes):
-                if mag < 1:
-                    continue
-                dalpha = discrete_direction(64, img.angles[x, y])
-                for r in rtable[scale_idx, rot_idx, dalpha]:
-                    center_x = x + r[0]
+    for (x, y), mag in np.ndenumerate(img.magnitudes):
+        if mag < 1:
+            continue
+
+        for scale_idx, scale in enumerate(scales):
+            for rot_idx, rot in enumerate(rotations):
+                #print 'scale', scale, 'rot', rot
+                c, s = np.cos(rot), np.sin(rot)
+                Rot = np.array([[c, -s], [s, c]])
+
+                alpha = (img.angles[x, y] + rot) % (2 * pi)
+                rindex = discrete_direction(64, alpha)
+                for r in rtable[rindex]:
+                    r = np.dot(Rot, r)
+                    r = scale * r
+                    center_x = int(x + r[0])
                     if not (0 <= center_x < img.w):
                         continue
-                    center_y = y + r[1]
+                    center_y = int(y + r[1])
                     if not (0 <= center_y < img.h):
                         continue
                     acc[scale_idx, rot_idx, center_x, center_y] += 1
