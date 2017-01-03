@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from math import cos, sin, ceil, sqrt, pi
 
 import numpy as np
@@ -36,6 +36,11 @@ def hough_learn(img):
     return rtable
 
 
+HoughDetectionResult = namedtuple(
+    'HoughDetectionResult',
+    ['accumulator', 'candidates'])
+
+
 def hough_detect(rtable, img):
     acc = np.zeros((len(scales), len(rotations), img.w, img.h))
 
@@ -43,22 +48,29 @@ def hough_detect(rtable, img):
         if mag < 1:
             continue
 
-        for scale_idx, scale in enumerate(scales):
-            for rot_idx, rot in enumerate(rotations):
-                c, s = np.cos(rot), np.sin(rot)
-                Rot = np.array([[c, -s], [s, c]])
+        for rot_idx, rot in enumerate(rotations):
+            c, s = np.cos(rot), np.sin(rot)
+            Rot = np.array([[c, -s], [s, c]])
 
-                alpha = (img.angles[x, y] + rot) % (2 * pi)
-                rindex = discrete_direction(64, alpha)
-                for r in rtable[rindex]:
-                    r = np.dot(Rot, r)
-                    r = scale * r
-                    center_x = int(x + r[0])
+            alpha = (img.angles[x, y] + rot) % (2 * pi)
+            rindex = discrete_direction(64, alpha)
+            for r in rtable[rindex]:
+                r = np.dot(Rot, r)
+                for scale_idx, scale in enumerate(scales):
+                    r_scaled = scale * r
+                    center_x = int(x + r_scaled[0])
                     if not (0 <= center_x < img.w):
                         continue
-                    center_y = int(y + r[1])
+                    center_y = int(y + r_scaled[1])
                     if not (0 <= center_y < img.h):
                         continue
                     acc[scale_idx, rot_idx, center_x, center_y] += 1
                     # TODO: increase neighbours (smoothing)
-    return acc
+
+    max_scale_idx, max_rot_idx, cx, cy = \
+        np.unravel_index(acc.argmax(), acc.shape)
+    return HoughDetectionResult(
+        acc,
+        [
+            (scales[max_scale_idx], rotations[max_rot_idx], cx, cy),
+        ])

@@ -14,5 +14,6 @@ if __name__ == '__main__':
         rtable = load(f)
     gradient_img = gradient(img)
     gradient_img = thin_nonmaximum(gradient_img)
-    acc = hough_detect(rtable, gradient_img)
-    imsave(argv[3], np.sum(acc, axis=(0, 1)))
+    result = hough_detect(rtable, gradient_img)
+    print result.candidates
+    imsave(argv[3], np.sum(result.accumulator, axis=(0, 1)))
