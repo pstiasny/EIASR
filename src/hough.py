@@ -9,43 +9,6 @@ def discrete_direction(ndir, alpha):
     return int((alpha / bucket_width + 0.5 * bucket_width) % ndir)
 
 
-class HoughLine(object):
-    """
-    A line l given as
-    
-        l.d = x * cos(l.alpha) + y * sin(l.alpha)
-
-    that received l.votes in the Hough accumulator.
-    """
-    def __init__(self, d, alpha, votes):
-        self.d = d
-        self.alpha = alpha
-        self.votes = votes
-
-
-def hough_lines(mag, angles):
-    w, h = mag.shape
-    ndir = 64
-
-    acc = np.zeros((ndir, int(ceil(sqrt(w*w + h*h)))))
-
-    for (x, y), s in np.ndenumerate(mag):
-        if s < 0.01:
-            continue
-        alpha = angles[(x, y)]
-        dscr_alpha = discrete_direction(ndir, alpha)
-        d = x * cos(alpha) + y * cos(alpha)
-        acc[dscr_alpha, int(d)] += 1
-
-    results = [
-        HoughLine(d, dscr_alpha, votes)
-        for (dscr_alpha, d), votes in np.ndenumerate(acc)
-        if votes > 0
-    ]
-    results.sort(lambda line: -line.votes)
-    return results
-
-
 scales = [2**i for i in range(-3, 3)]
 rotations = [i * (pi / 32) for i in range(0, 64)]
 
@@ -82,7 +45,6 @@ def hough_detect(rtable, img):
 
         for scale_idx, scale in enumerate(scales):
             for rot_idx, rot in enumerate(rotations):
-                #print 'scale', scale, 'rot', rot
                 c, s = np.cos(rot), np.sin(rot)
                 Rot = np.array([[c, -s], [s, c]])
 
