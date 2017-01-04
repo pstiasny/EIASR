@@ -2,6 +2,8 @@ from collections import defaultdict, namedtuple
 from math import cos, sin, ceil, sqrt, pi
 
 import numpy as np
+from scipy.ndimage.filters import gaussian_filter
+from skimage.feature import peak_local_max
 
 
 def discrete_direction(ndir, alpha):
@@ -65,12 +67,12 @@ def hough_detect(rtable, img):
                     if not (0 <= center_y < img.h):
                         continue
                     acc[scale_idx, rot_idx, center_x, center_y] += 1
-                    # TODO: increase neighbours (smoothing)
 
-    max_scale_idx, max_rot_idx, cx, cy = \
-        np.unravel_index(acc.argmax(), acc.shape)
+    acc = gaussian_filter(acc, 2)
+    max_coordinates = peak_local_max(acc, min_distance=2, num_peaks=10)
     return HoughDetectionResult(
         acc,
         [
-            (scales[max_scale_idx], rotations[max_rot_idx], cx, cy),
+            (scales[max_scale_idx], rotations[max_rot_idx], cx, cy)
+            for max_scale_idx, max_rot_idx, cx, cy in max_coordinates
         ])
