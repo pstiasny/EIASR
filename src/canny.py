@@ -60,8 +60,54 @@ def thin_nonmaximum(gradient_image):
     return GradientImage(thinned, gradient_image.angles)
 
 
-def thin_hysteresis(high, low, magnitudes):
-    return magnitudes  # TODO
+def thin_hysteresis(gradient_image, t_high=0.2, t_low=0.1):
+
+    # 8 pixel neighborhood
+    x = [-1,  0,  1, -1,  1, -1,  0,  1]
+    y = [-1, -1, -1,  0,  0,  1,  1,  1]
+    
+    magnitudes = gradient_image.magnitudes
+    
+    # Dimensions
+    xdim, ydim = magnitudes.shape
+    
+    # Max magnitude
+    max_magn = magnitudes.max()
+    
+    # Pixels > t_high are kept automatically 
+    thinned = np.where(magnitudes > (t_high * max_magn), magnitudes, 0)
+
+    # Pixels > t_low will be ad ded later if they prove to be    
+    # adjacent to another pixel which has been included in the thinned list
+    cands = np.where(magnitudes > (t_low * max_magn), magnitudes, 0)
+
+    # Create an initial list of strong edge pixels
+    prevx, prevy = thinned.nonzero()
+
+    # If the previous loop of testing found no new pixels to move from
+    # the cands list to the edge list, then stop
+    while len(prevx) != 0:
+        newx, newy = [], []
+        # Loop over new edge pixels discovered on previous iteration
+        for ii in range(len(prevx)):
+            # Loop through 8 pixel neighborhood
+            for ij in range(len(x)):
+                xidx = prevx[ii] + x[ij]
+                yidx = prevy[ii] + y[ij]
+                # Check if pixel index falls within image boundary
+                if xidx >= 0 and xidx < xdim and yidx >= 0 and yidx < ydim:
+                    # Check if pixel is on the cands list but has not yet been added to the thinned list
+                    if cands[xidx][yidx] and not thinned[xidx][yidx]:
+                        # Transfer to thinned list
+                        thinned[xidx][yidx] = cands[xidx][yidx]
+                        # Keep track of indices for next loop iteration
+                        newx.append(xidx)
+                        newy.append(yidx)
+        # Update for next iteration
+        prevx = newx
+        prevy = newy
+
+    return GradientImage(thinned, gradient_image.angles)
 
 
 NEIGHBOURS = [

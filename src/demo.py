@@ -2,7 +2,7 @@ import sys
 
 from scipy.misc import imread, imsave
 
-from canny import gradient, thin_nonmaximum
+from canny import gradient, thin_nonmaximum, thin_hysteresis
 from hough import hough_detect, hough_learn
 
 
@@ -17,10 +17,13 @@ def main():
     thinned = thin_nonmaximum(gradient_)
     imsave('4-thinned.png', thinned.magnitudes)
 
-    rtable = hough_learn(thinned)
+    thinned_hyst = thin_hysteresis(thinned, 0.3, 0.1)
+    imsave('5-thinned_hyst.png', thinned_hyst.magnitudes)
+
+    rtable = hough_learn(thinned_hyst)
     for k, v in rtable.iteritems():
         print k, len(v)
-    hough_acc = hough_detect(rtable, thinned)
+    hough_acc = hough_detect(rtable, thinned_hyst)
     imsave('5-hough-acc.png', hough_acc[0, 0, :, :])
 
 
