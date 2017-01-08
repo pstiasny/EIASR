@@ -6,14 +6,18 @@ from PyQt5 import uic
 from PyQt5.QtGui import *
 from scipy.misc import imread, imsave
 
-from canny import gradient, thin_nonmaximum
+from canny import gradient, thin_nonmaximum, thin_hysteresis
+from hough import hough_learn, hough_detect
 
 class Image():
 
 	def __init__(self, img_path):
 		self.path = img_path
-		self.img = imread(img_path)
-		self.gray = np.dot(self.img[...,:3], [0.299, 0.587, 0.114])
+		self.gray = imread(img_path, flatten=True, mode='L')
+		# if self.img.shape[2] < 3:
+		# 	self.gray = self.img
+		# else:
+		# 	self.gray = np.dot(self.img[...,:3], [0.299, 0.587, 0.114])
 		self.computed = False
 
 	@property
@@ -26,48 +30,66 @@ class Image():
 	def gradient(self):
 		if hasattr(self, "_gradient"):
 			return self._gradient
-			
-	@property
-	def magnitudes(self):
-		if hasattr(self,"_magnitudes"):
-			return self._magnitudes
-			
-	@property
-	def angles(self):
-		if hasattr(self,"_angles"):
-			return self._angles
 
 	@property
-	def thinned(self):
-		if hasattr(self,"_thinned"):
-			return self._thinned
-		
+	def thinned_nmax(self):
+		if hasattr(self,"_thinned_nmax"):
+			return self._thinned_nmax
+
+	@property
+	def thinned_hyst(self):
+		if hasattr(self,"_thinned_hyst"):
+			return self._thinned_hyst
+	
+	def visualImages(self):
+		images = [self.gray]
+		if self.computed:
+			images.extend([self.gradient.magnitudes, self.thinned_nmax.magnitudes, self.thinned_hyst.magnitudes])
+		if hasattr(self, "ght_res"):
+			images.append(self.ght_res)
+		return [imgToQImg(im) for im in images]
+
 	def compute(self):
+
 		if not self.computed:
 			self._gradient = gradient(self.gray)
-			self._magnitudes =  self.gradient.magnitudes
-			self._angles =  self.gradient.angles
-			self._thinned =  thin_nonmaximum(self.gradient)
+			self._thinned_nmax =  thin_nonmaximum(self.gradient)
+			self._thinned_hyst =  thin_hysteresis(self.thinned_nmax)
 			self.computed = True
 
 
+class HoughShapeDetector():
+
+	def __init__(self, template):
+		self.template = template
+		self.train()
+
+	def train(self):
+		self.template.compute()
+		self.rtable = hough_learn(self.template.thinned_hyst)
+
+	def detect(self, img):
+		img.compute()
+		result = hough_detect(self.rtable, img.thinned_hyst)
+		img.ght_res = np.sum(result.accumulator, axis=(0, 1))
+		
+
 def imgToQImg(img):
 
-        if img is None:
-                return
+	if img is None:
+		return
 	
 	if len(img.shape) == 3:
-                height, width, channel = img.shape
-                bytesPerLine = 3 * width
-                return QImage(img, width, height, bytesPerLine, QImage.Format_RGB888)
-
+		height, width, channel = img.shape
+		bytesPerLine = 3 * width
+		return QImage(img, width, height, bytesPerLine, QImage.Format_RGB888)
 	else:
 		height, width = img.shape
-                bytesPerLine =  width
-                mn = np.min(img)
-                mx = np.max(img)
-                img = np.uint8((img - mn)*255/(mx - mn))
-                return QImage(img, width, height, bytesPerLine, QImage.Format_Indexed8)
+		bytesPerLine =  width
+		mn = np.min(img)
+		mx = np.max(img)
+		img = np.uint8((img - mn)*255/(mx - mn))
+		return QImage(img, width, height, bytesPerLine, QImage.Format_Indexed8)
 
 
 class Canny(QWidget):
@@ -77,7 +99,7 @@ class Canny(QWidget):
 		super(Canny, self).__init__()
 		self.images = []
 		self.initUI()
-        
+
 	def initUI(self):               
         
 		self.setGeometry(0, 0, 780, 420)
@@ -99,15 +121,20 @@ class Canny(QWidget):
 
 	def setupButtons(self):
 
+		load_imgs_but = QPushButton('Load imgs', self)
+		load_imgs_but.clicked.connect(self.loadImages)
+		load_imgs_but.setMaximumWidth(85)
+		# load_imgs_but.resize(load_imgs_but.sizeHint())
+		load_imgs_but.move(595, 330)
+
+		load_templ_but = QPushButton('Load template', self)
+		load_templ_but.clicked.connect(self.loadTemplate)
+		load_templ_but.setMaximumWidth(110)
+		load_templ_but.move(670, 330)
+
 		exit_but = QPushButton('Quit', self)
 		exit_but.clicked.connect(QCoreApplication.instance().quit)
-		exit_but.resize(exit_but.sizeHint())
-		exit_but.move(615, 360)
-
-		load_but = QPushButton('Load images', self)
-		load_but.clicked.connect(self.loadImagesClicked)
-		load_but.resize(load_but.sizeHint())
-		load_but.move(600, 330)
+		exit_but.move(595, 380)
 
 	def setupTable(self):
 
@@ -131,28 +158,33 @@ class Canny(QWidget):
 			self.table.setItem(idx,0, QTableWidgetItem(img.name))
 
 	def refreshImgViews(self):
-		img = self.activeImg
-		pics = [img.img, img.gray, img.angles, img.magnitudes, img.thinned]
-		pics = [p for p in pics if p != None]
-		pics = [imgToQImg(p) for p in pics]
-		self.ig.populate(pics)
+		images = self.activeImg.visualImages()
+		self.ig.populate(images)
 		self.ig.setStyleSheet('background-color: gray')
 		self.ig.show()
+
+	def setImgForMainImgView(self, qimg):
+		main_pixm = QPixmap(qimg)
+		main_pixm = main_pixm.scaled(self.main_img_view.size(), Qt.KeepAspectRatio)
+		self.main_img_view.setPixmap(main_pixm)
 		
 	def double_clicked_cell(self, row, column):
 
 		self.images[row].compute()
+		if hasattr(self, "detector"):
+			self.detector.detect(self.images[row])
+
 		self.refreshImgViews()
 		
 
 	def clicked_cell(self, row, column):
 
 		self.activeImg = self.images[row]
-		self.setImgForMainImgView(imgToQImg(self.activeImg.img))
+		self.setImgForMainImgView(imgToQImg(self.activeImg.gray))
 		self.refreshImgViews()
 
 
-	def loadImagesClicked(self):
+	def loadImages(self):
 		
 		fileDialog = QFileDialog(self)
 		fileDialog.setFileMode(QFileDialog.ExistingFiles)
@@ -166,11 +198,23 @@ class Canny(QWidget):
 			self.images.extend(images)
 			self.updateTable()
 
+	def loadTemplate(self):
+		fileDialog = QFileDialog(self)
+		fileDialog.setFileMode(QFileDialog.ExistingFiles)
+		fileDialog.setNameFilters(['Images (*.jpg *.png)'])
+		fileDialog.show()
 
-	def setImgForMainImgView(self, qimg):
-		main_pixm = QPixmap(qimg)
-		main_pixm = main_pixm.scaled(self.main_img_view.size(), Qt.KeepAspectRatio)
-		self.main_img_view.setPixmap(main_pixm)
+		if fileDialog.exec_():
+			filename =  fileDialog.selectedFiles()[0]
+			template = Image(str(filename))
+			self.detector = HoughShapeDetector(template)
+
+
+	def detectTemplateInImage(self, img):
+		self.template.compute()
+		
+
+	
 
 
 
@@ -219,7 +263,7 @@ class ImageGallery(QWidget):
 		clickedLab = self.childAt(event.pos())
 		clickedIdx = self.grid.indexOf(clickedLab)
 		if clickedLab is None or clickedIdx >= len(self.pics):
-                        return
+			return
 		if not clickedLab.active:
 			clickedLab.active = True
 			self.activeLabIdx = clickedIdx
@@ -227,7 +271,7 @@ class ImageGallery(QWidget):
 			self.deactivateAll()
 			clickedLab.active = True
 			
-                self.parentWidget().setImgForMainImgView(self.pics[clickedIdx])
+		self.parentWidget().setImgForMainImgView(self.pics[clickedIdx])
                 
 	def deactivateAll(self):
                 items = [self.grid.itemAt(i).widget() for i in range(self.grid.count())]
