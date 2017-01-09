@@ -72,7 +72,7 @@ class HoughShapeDetector():
 		img.compute()
 		result = hough_detect(self.rtable, img.thinned_hyst)
 		img.ght_res = np.sum(result.accumulator, axis=(0, 1))
-		
+
 
 def imgToQImg(img):
 
@@ -102,17 +102,19 @@ class Canny(QWidget):
 
 	def initUI(self):               
         
-		self.setGeometry(0, 0, 780, 420)
+		self.setGeometry(0, 0, 780, 620)
 		self.setWindowTitle('Jagermeister detector 3000')   
 		self.setupImgViews()
 		self.setupButtons()
 		self.setupTable()
+		self.setupModeBox()
 		self.show()
+
 
 	def setupImgViews(self):
 		
 		self.ig = ImageGallery(parent=self)
-		self.ig.setGeometry(410, 230, 370, 190)
+		self.ig.setGeometry(0, 410, 400, 210)
 
 		self.main_img_view = QLabel(self)
 		self.main_img_view.setStyleSheet('background-color: gray')
@@ -121,25 +123,25 @@ class Canny(QWidget):
 
 	def setupButtons(self):
 
-		load_imgs_but = QPushButton('Load imgs', self)
+		load_imgs_but = QPushButton('Load images', self)
 		load_imgs_but.clicked.connect(self.loadImages)
-		load_imgs_but.setMaximumWidth(85)
+		load_imgs_but.setMaximumWidth(110)
 		# load_imgs_but.resize(load_imgs_but.sizeHint())
-		load_imgs_but.move(595, 330)
+		load_imgs_but.move(410, 430)
 
 		load_templ_but = QPushButton('Load template', self)
 		load_templ_but.clicked.connect(self.loadTemplate)
 		load_templ_but.setMaximumWidth(110)
-		load_templ_but.move(670, 330)
+		load_templ_but.move(410, 470)
 
 		exit_but = QPushButton('Quit', self)
 		exit_but.clicked.connect(QCoreApplication.instance().quit)
-		exit_but.move(595, 380)
+		exit_but.move(410, 510)
 
 	def setupTable(self):
 
 		self.table = QTableWidget(self)
-		self.table.resize(350, 220)
+		self.table.resize(350, 400)
 		self.table.setColumnCount(2)
 		self.table.move(420, 10)
 		self.table.setHorizontalHeaderItem(0, QTableWidgetItem("Image"))
@@ -151,7 +153,11 @@ class Canny(QWidget):
 		self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
 		self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
 
-	
+	def setupModeBox(self):
+		rb = RadioBox('Detection mode:',['Fast', 'Normal', 'Precise'], parent=self)
+		rb.setGeometry(550, 430, 150, 100)
+
+
 	def updateTable(self):
 		self.table.setRowCount(len(self.images))
 		for idx, img in enumerate(self.images):
@@ -167,6 +173,9 @@ class Canny(QWidget):
 		main_pixm = QPixmap(qimg)
 		main_pixm = main_pixm.scaled(self.main_img_view.size(), Qt.KeepAspectRatio)
 		self.main_img_view.setPixmap(main_pixm)
+
+	def updateDetectionMode(self, mode):
+		print "detection mode is set to", mode
 		
 	def double_clicked_cell(self, row, column):
 
@@ -210,15 +219,37 @@ class Canny(QWidget):
 			self.detector = HoughShapeDetector(template)
 
 
-	def detectTemplateInImage(self, img):
-		self.template.compute()
+class RadioBox(QGroupBox):
+    
+	def __init__(self, title,  elements, parent=None):
+		super(QWidget, self).__init__(parent)
+		self.box = QVBoxLayout()
+		self.group = QButtonGroup()
+		self.setTitle(title)
+		self.buttons = []
+		self.createRadioButtons(elements)
+		self.buttons[1].setChecked(True)
+		self.setLayout(self.box)
+
+
+	def createRadioButtons(self, titles):
+		for idx, title in enumerate(titles):
+			rb = QRadioButton(title)
+			rb.toggled.connect(self.on_radio_button_toggled)
+			self.box.addWidget(rb)
+			self.group.addButton(rb, idx)
+			self.buttons.append(rb)
+                        
+
+	def on_radio_button_toggled(self, event):
+
+		radiobutton = self.sender()
+
+		if radiobutton.isChecked():
+			self.parentWidget().updateDetectionMode(radiobutton.text())
+			
 		
-
-	
-
-
-
-	
+    
 class ImageGallery(QWidget):
     
 	def __init__(self, imagesPerRow=4,itemSize=80, parent=None):
@@ -228,6 +259,7 @@ class ImageGallery(QWidget):
 		self.grid = QGridLayout()
 		self.setLayout(self.grid)
 		self.createLabels()
+		self.pics = None
 		
 		self.mousePressEvent = self.changeActiveThumb
 
@@ -262,7 +294,8 @@ class ImageGallery(QWidget):
 
 		clickedLab = self.childAt(event.pos())
 		clickedIdx = self.grid.indexOf(clickedLab)
-		if clickedLab is None or clickedIdx >= len(self.pics):
+
+		if clickedLab is None or self.pics is None or clickedIdx >= len(self.pics):
 			return
 		if not clickedLab.active:
 			clickedLab.active = True
