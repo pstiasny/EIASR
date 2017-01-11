@@ -43,12 +43,16 @@ HoughDetectionResult = namedtuple(
     ['accumulator', 'candidates'])
 
 
-def hough_detect(rtable, img):
+def hough_detect(rtable, img, on_progress=None):
     acc = np.zeros((len(scales), len(rotations), img.w, img.h))
+    num_pixels = img.w * img.h
 
     for (x, y), mag in np.ndenumerate(img.magnitudes):
         if mag < 1:
             continue
+
+        if on_progress is not None:
+            on_progress(100 * (x * img.h + y) / num_pixels)
 
         for rot_idx, rot in enumerate(rotations):
             c, s = np.cos(rot), np.sin(rot)
