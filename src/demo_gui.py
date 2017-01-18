@@ -8,16 +8,16 @@ from scipy.misc import imread, imsave
 
 from canny import gradient, thin_nonmaximum, thin_hysteresis
 from hough import hough_learn, hough_detect
+import math
+
+import cv2
 
 class Image():
 
 	def __init__(self, img_path):
 		self.path = img_path
+		self.original = imread(img_path, mode='RGB')
 		self.gray = imread(img_path, flatten=True, mode='L')
-		# if self.img.shape[2] < 3:
-		# 	self.gray = self.img
-		# else:
-		# 	self.gray = np.dot(self.img[...,:3], [0.299, 0.587, 0.114])
 		self.computed = False
 
 	@property
@@ -42,11 +42,13 @@ class Image():
 			return self._thinned_hyst
 	
 	def visualImages(self):
-		images = [self.gray]
+		images = [self.original]
 		if self.computed:
 			images.extend([self.gradient.magnitudes, self.thinned_nmax.magnitudes, self.thinned_hyst.magnitudes])
 		if hasattr(self, "ght_res"):
 			images.append(self.ght_res)
+		if hasattr(self, "ght_overlayed"):
+			images.append(self.ght_overlayed)
 		return [imgToQImg(im) for im in images]
 
 	def compute(self):
@@ -67,18 +69,53 @@ class HoughShapeDetector():
 	def train(self):
 		self.template.compute()
 		self.rtable = hough_learn(self.template.thinned_hyst)
+		pts = [item for sublist in self.rtable.values() for item in sublist]
+		pts = list(set(pts))
+		pts = [list(pt) for pt in pts]
+		self.shapePts = pts
+
 
 	def detect(self, img):
 		img.compute()
-		result = hough_detect(self.rtable, img.thinned_hyst)
-		img.ght_res = np.sum(result.accumulator, axis=(0, 1))
+		self.result = hough_detect(self.rtable, img.thinned_hyst)
+		img.ght_res = np.sum(self.result.accumulator, axis=(0, 1))
+		img.ght_overlayed = self.createTempateOverlay(img)
+
+	def createTempateOverlay(self, img):
+		
+		shapes = []
+		for cand in self.result[1]:
+			# cand_shape = np.zeros(img.gray.shape)
+			scale, angle, cx, cy = cand
+			angle *= 180/np.pi
+			tmpPoints = np.asarray(self.shapePts, dtype=np.float64)
+			tmpPoints *= scale
+			tmpPoints = tmpPoints.astype(np.int64)
+			
+
+			tmpPoints[:,0] += cx
+			tmpPoints[:,1] += cy
+
+			tmpPoints = [rotatePoint((cx,cy),p,angle) for p in tmpPoints]
+			shapes.append(tmpPoints)
+
+		overlay = np.zeros(img.gray.shape)
+		marked_img = img.original.copy()
+		for shape in shapes:
+			
+			shape = np.asarray(shape, dtype = np.int)
+			marked_img[shape[:,0], shape[:,1]] = (0,255,0)
+		# cv2.addWeighted(overlay, 1.0, img.gray, 0, 0, res_img)
+		# res_img = cv2.addWeighted(overlay,1.0,res_img,0,0)
+		return marked_img
+
 
 
 def imgToQImg(img):
 
 	if img is None:
 		return
-	
+
 	if len(img.shape) == 3:
 		height, width, channel = img.shape
 		bytesPerLine = 3 * width
@@ -108,6 +145,7 @@ class Canny(QWidget):
 		self.setupButtons()
 		self.setupTable()
 		self.setupModeBox()
+		self.setupProgressView()
 		self.show()
 
 
@@ -126,7 +164,6 @@ class Canny(QWidget):
 		load_imgs_but = QPushButton('Load images', self)
 		load_imgs_but.clicked.connect(self.loadImages)
 		load_imgs_but.setMaximumWidth(110)
-		# load_imgs_but.resize(load_imgs_but.sizeHint())
 		load_imgs_but.move(410, 430)
 
 		load_templ_but = QPushButton('Load template', self)
@@ -158,6 +195,20 @@ class Canny(QWidget):
 		rb.setGeometry(550, 430, 150, 100)
 
 
+	def setupProgressView(self):
+		self.progressView = QWidget(self)
+		self.progressView.setGeometry(self.geometry())
+		self.progressView.setHidden(True)
+		self.progressView.setStyleSheet("background-color: rgba(255, 255, 255, 100)")
+		pr_bar = QProgressBar(self.progressView)
+		
+		pr_bar.setGeometry(0, 0, 250, 20)
+
+		g  = pr_bar.geometry()
+		g.moveCenter(QPoint(self.width()/2, self.height()/2))
+		pr_bar.setGeometry(g)
+		self.pr_bar = pr_bar
+
 	def updateTable(self):
 		self.table.setRowCount(len(self.images))
 		for idx, img in enumerate(self.images):
@@ -166,7 +217,7 @@ class Canny(QWidget):
 	def refreshImgViews(self):
 		images = self.activeImg.visualImages()
 		self.ig.populate(images)
-		self.ig.setStyleSheet('background-color: gray')
+		# self.ig.setStyleSheet('background-color: gray')
 		self.ig.show()
 
 	def setImgForMainImgView(self, qimg):
@@ -189,7 +240,7 @@ class Canny(QWidget):
 	def clicked_cell(self, row, column):
 
 		self.activeImg = self.images[row]
-		self.setImgForMainImgView(imgToQImg(self.activeImg.gray))
+		self.setImgForMainImgView(imgToQImg(self.activeImg.original))
 		self.refreshImgViews()
 
 
@@ -281,7 +332,7 @@ class ImageGallery(QWidget):
 		for idx, pic in enumerate(pics):
 			label = self.grid.itemAt(idx).widget()
 			pixmap = QPixmap(pic)
-			pixmap = pixmap.scaled(self.itemSize,self.itemSize, flags)
+			pixmap = pixmap.scaled(label.size(), flags)
 			label.setPixmap(pixmap)
 			col +=1
 			if col % self.imagesPerRow == 0:
@@ -307,7 +358,7 @@ class ImageGallery(QWidget):
 		self.parentWidget().setImgForMainImgView(self.pics[clickedIdx])
                 
 	def deactivateAll(self):
-                items = [self.grid.itemAt(i).widget() for i in range(self.grid.count())]
+		items = [self.grid.itemAt(i).widget() for i in range(self.grid.count())]
 		for i in items:
 			i.active = False
                                    
@@ -334,7 +385,14 @@ class ImageLabel(QLabel):
 		else:
 			self.setStyleSheet('border:None')
 
-
+def rotatePoint(centerPoint,point,angle):
+	"""Rotates a point around another centerPoint. Angle is in degrees.
+	Rotation is counter-clockwise"""
+	angle = math.radians(angle)
+	temp_point = point[0]-centerPoint[0] , point[1]-centerPoint[1]
+	temp_point = ( temp_point[0]*math.cos(angle)-temp_point[1]*math.sin(angle) , temp_point[0]*math.sin(angle)+temp_point[1]*math.cos(angle))
+	temp_point = temp_point[0]+centerPoint[0] , temp_point[1]+centerPoint[1]
+	return temp_point
 		
 def main():
     
