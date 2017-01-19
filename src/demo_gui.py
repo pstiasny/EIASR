@@ -64,6 +64,7 @@ class HoughShapeDetector():
 
 	def __init__(self, template):
 		self.template = template
+		# self.progress_func = progress_func
 		self.train()
 
 	def train(self):
@@ -75,9 +76,9 @@ class HoughShapeDetector():
 		self.shapePts = pts
 
 
-	def detect(self, img):
+	def detect(self, img, progress_func):
 		img.compute()
-		self.result = hough_detect(self.rtable, img.thinned_hyst)
+		self.result = hough_detect(self.rtable, img.thinned_hyst, progress_func)
 		img.ght_res = np.sum(self.result.accumulator, axis=(0, 1))
 		img.ght_overlayed = self.createTempateOverlay(img)
 
@@ -198,7 +199,7 @@ class Canny(QWidget):
 	def setupProgressView(self):
 		self.progressView = QWidget(self)
 		self.progressView.setGeometry(self.geometry())
-		self.progressView.setHidden(True)
+		self.progressView.setVisible(False)
 		self.progressView.setStyleSheet("background-color: rgba(255, 255, 255, 100)")
 		pr_bar = QProgressBar(self.progressView)
 		
@@ -209,6 +210,13 @@ class Canny(QWidget):
 		pr_bar.setGeometry(g)
 		self.pr_bar = pr_bar
 
+
+		pr_label = QLabel(self.progressView)
+		pr_label.setText('Detecting template! Please wait =)')
+		pr_label_geometry = pr_bar.geometry()
+		pr_label_geometry.moveCenter(QPoint(self.width()/2, (self.height()/2)-50))
+		pr_label.setGeometry(pr_label_geometry)
+
 	def updateTable(self):
 		self.table.setRowCount(len(self.images))
 		for idx, img in enumerate(self.images):
@@ -217,7 +225,6 @@ class Canny(QWidget):
 	def refreshImgViews(self):
 		images = self.activeImg.visualImages()
 		self.ig.populate(images)
-		# self.ig.setStyleSheet('background-color: gray')
 		self.ig.show()
 
 	def setImgForMainImgView(self, qimg):
@@ -227,15 +234,29 @@ class Canny(QWidget):
 
 	def updateDetectionMode(self, mode):
 		print "detection mode is set to", mode
-		
+	
+
 	def double_clicked_cell(self, row, column):
 
 		self.images[row].compute()
 		if hasattr(self, "detector"):
-			self.detector.detect(self.images[row])
+			
+			self.progressView.setVisible(True)
+
+			self.workerThread = QThread()
+			workerObject = Worker(self.detector.detect, (self.images[row],))
+			workerObject.moveToThread(self.workerThread)
+			self.workerThread.started.connect(workerObject.run)
+			workerObject.finished.connect(self.finishDetection)
+			workerObject.madeProgress.connect(self.pr_bar.setValue)
+			self.workerThread.start()
 
 		self.refreshImgViews()
-		
+
+	def finishDetection(self):
+		self.refreshImgViews()
+		self.progressView.setVisible(False)
+		self.workerThread.quit()
 
 	def clicked_cell(self, row, column):
 
@@ -384,6 +405,23 @@ class ImageLabel(QLabel):
 			self.setStyleSheet('border: 2px solid blue')
 		else:
 			self.setStyleSheet('border:None')
+
+class Worker(QObject):
+	"""docstring for Worker"""
+	finished = pyqtSignal()
+	madeProgress = pyqtSignal([int])
+
+	def __init__(self, task, args):
+		super(Worker, self).__init__()
+		self.task = task
+		self.t_args = args
+
+	def run(self):
+		self.task(*self.t_args, progress_func=self.progressChanged)
+		self.finished.emit()
+
+	def progressChanged(self, progress):
+		self.madeProgress.emit(progress)
 
 def rotatePoint(centerPoint,point,angle):
 	"""Rotates a point around another centerPoint. Angle is in degrees.
