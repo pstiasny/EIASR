@@ -86,18 +86,18 @@ class HoughShapeDetector():
 		
 		shapes = []
 		for cand in self.result[1]:
-			# cand_shape = np.zeros(img.gray.shape)
+
 			scale, angle, cx, cy = cand
 			angle *= 180/np.pi
 			tmpPoints = np.asarray(self.shapePts, dtype=np.float64)
 			tmpPoints *= scale
 			tmpPoints = tmpPoints.astype(np.int64)
 			
-
 			tmpPoints[:,0] += cx
 			tmpPoints[:,1] += cy
 
 			tmpPoints = [rotatePoint((cx,cy),p,angle) for p in tmpPoints]
+			tmpPoints = [tp for tp in tmpPoints if self.pointInsideShape(tp, img.gray.shape)]
 			shapes.append(tmpPoints)
 
 		overlay = np.zeros(img.gray.shape)
@@ -106,10 +106,11 @@ class HoughShapeDetector():
 			
 			shape = np.asarray(shape, dtype = np.int)
 			marked_img[shape[:,0], shape[:,1]] = (0,255,0)
-		# cv2.addWeighted(overlay, 1.0, img.gray, 0, 0, res_img)
-		# res_img = cv2.addWeighted(overlay,1.0,res_img,0,0)
+	
 		return marked_img
 
+	def pointInsideShape(self, point, shape):
+		return (point[0] >= 0 and point[0]<shape[0] and point[1] >= 0 and point[1]<shape[1])
 
 
 def imgToQImg(img):
@@ -140,7 +141,7 @@ class Canny(QWidget):
 
 	def initUI(self):               
         
-		self.setGeometry(0, 0, 780, 620)
+		self.setGeometry(0, 0, 780, 530)
 		self.setWindowTitle('Jagermeister detector 3000')   
 		self.setupImgViews()
 		self.setupButtons()
@@ -152,12 +153,16 @@ class Canny(QWidget):
 
 	def setupImgViews(self):
 		
-		self.ig = ImageGallery(parent=self)
-		self.ig.setGeometry(0, 410, 400, 210)
+		self.ig = ImageGallery(parent=self, imagesPerRow=7)
+		self.ig.setGeometry(0, 410, 700, 125)
 
 		self.main_img_view = QLabel(self)
 		self.main_img_view.setStyleSheet('background-color: gray')
 		self.main_img_view.setGeometry(10, 10, 400, 400)
+
+		self.templ_img_view = QLabel(self)
+		self.templ_img_view.setStyleSheet('background-color: gray')
+		self.templ_img_view.setGeometry(420, 220, 190, 190)
 
 
 	def setupButtons(self):
@@ -165,16 +170,16 @@ class Canny(QWidget):
 		load_imgs_but = QPushButton('Load images', self)
 		load_imgs_but.clicked.connect(self.loadImages)
 		load_imgs_but.setMaximumWidth(110)
-		load_imgs_but.move(410, 430)
+		load_imgs_but.move(620, 315)
 
 		load_templ_but = QPushButton('Load template', self)
 		load_templ_but.clicked.connect(self.loadTemplate)
 		load_templ_but.setMaximumWidth(110)
-		load_templ_but.move(410, 470)
+		load_templ_but.move(620, 350)
 
 		exit_but = QPushButton('Quit', self)
 		exit_but.clicked.connect(QCoreApplication.instance().quit)
-		exit_but.move(410, 510)
+		exit_but.move(620, 385)
 
 	def setupTable(self):
 
@@ -185,7 +190,6 @@ class Canny(QWidget):
 		self.table.setHorizontalHeaderItem(0, QTableWidgetItem("Image"))
 		self.table.setHorizontalHeaderItem(1, QTableWidgetItem("Result"))
 		self.table.setColumnWidth(0, 350)
-		# self.table.setColumnWidth(1, 40)
 		self.table.cellDoubleClicked.connect(self.double_clicked_cell)
 		self.table.cellClicked.connect(self.clicked_cell)
 		self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
@@ -193,7 +197,7 @@ class Canny(QWidget):
 
 	def setupModeBox(self):
 		rb = RadioBox('Detection mode:',['Fast', 'Normal', 'Precise'], parent=self)
-		rb.setGeometry(550, 430, 150, 100)
+		rb.setGeometry(620, 220, 150, 100)
 
 
 	def setupProgressView(self):
@@ -227,11 +231,12 @@ class Canny(QWidget):
 		self.ig.populate(images)
 		self.ig.show()
 
-	def setImgForMainImgView(self, qimg):
-		main_pixm = QPixmap(qimg)
-		main_pixm = main_pixm.scaled(self.main_img_view.size(), Qt.KeepAspectRatio)
-		self.main_img_view.setPixmap(main_pixm)
+	def setImgForImgView(self, qimg, img_view):
+		pixm = QPixmap(qimg)
+		pixm = pixm.scaled(img_view.size(), Qt.KeepAspectRatio)
+		img_view.setPixmap(pixm)
 
+	
 	def updateDetectionMode(self, mode):
 		print "detection mode is set to", mode
 	
@@ -261,7 +266,7 @@ class Canny(QWidget):
 	def clicked_cell(self, row, column):
 
 		self.activeImg = self.images[row]
-		self.setImgForMainImgView(imgToQImg(self.activeImg.original))
+		self.setImgForImgView(imgToQImg(self.activeImg.original), self.main_img_view)
 		self.refreshImgViews()
 
 
@@ -289,6 +294,7 @@ class Canny(QWidget):
 			filename =  fileDialog.selectedFiles()[0]
 			template = Image(str(filename))
 			self.detector = HoughShapeDetector(template)
+			self.setImgForImgView(imgToQImg(template.original), self.templ_img_view)
 
 
 class RadioBox(QGroupBox):
@@ -376,7 +382,7 @@ class ImageGallery(QWidget):
 			self.deactivateAll()
 			clickedLab.active = True
 			
-		self.parentWidget().setImgForMainImgView(self.pics[clickedIdx])
+		self.parentWidget().setImgForImgView(self.pics[clickedIdx], self.parentWidget().main_img_view)
                 
 	def deactivateAll(self):
 		items = [self.grid.itemAt(i).widget() for i in range(self.grid.count())]
