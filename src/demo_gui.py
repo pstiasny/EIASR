@@ -179,13 +179,13 @@ class Canny(QWidget):
 	def setupTable(self):
 
 		self.table = QTableWidget(self)
-		self.table.resize(350, 400)
-		self.table.setColumnCount(2)
+		self.table.resize(350, 200)
+		self.table.setColumnCount(1)
 		self.table.move(420, 10)
 		self.table.setHorizontalHeaderItem(0, QTableWidgetItem("Image"))
 		self.table.setHorizontalHeaderItem(1, QTableWidgetItem("Result"))
-		self.table.setColumnWidth(0, 300)
-		self.table.setColumnWidth(1, 40)
+		self.table.setColumnWidth(0, 350)
+		# self.table.setColumnWidth(1, 40)
 		self.table.cellDoubleClicked.connect(self.double_clicked_cell)
 		self.table.cellClicked.connect(self.clicked_cell)
 		self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)

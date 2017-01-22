@@ -22,15 +22,16 @@
 
 \title{Detection and localization of a 2-D contour with GHT}
 \author{E. Hyrol and P. Stiasny}
-\date{28.11.2016}
+\date{22.01.2017}
 \maketitle
 
-\begin{abstract}
-
-\end{abstract}
+%\begin{abstract}
+%
+%\end{abstract}
 
 
 \section{Introduction}
+
 
 
 \section{Theory}
@@ -203,11 +204,14 @@ An example can be observed on Figure \ref{fig:edge_chain_labs}.
   \end{figure}
 
 
-\subsection{Contour detection by GHT}
+\subsection{Generalized Hough Transform}
 
-\textbf{Parameters of the Hough space:} $C = (x_C; y_C)$: location of the center mass, $s$ - scale, $\alpha$ - contour orientation angle.
 
-\textbf{Model learning (design).} For every pair of allowed discrete values $s_d$, $\alpha_g$ of scale and orientation, create a table $R(s_d, \alpha_g) = [ r( \varphi ), \varphi ]$, where for eachedge $x_B$ with edge direction $\varphi$ the pair:$[r(\varphi)=x_B - C, \varphi]$ is stored.
+To generalize the Hough algorithm to non-analytic curves,  Dana H. Ballard defines the following parameters for a generalized shape: $a={y,s,θ}$, where $y$ is a reference origin for the shape, $\theta$ is its orientation, and $s = (sx, sy)$ describes two orthogonal scale factors. As in the case of initial Hough Transforms, there is an algorithm for computing the best set of parameters for a given shape from edge pixel data. These parameters no longer have equal status. The reference origin location $y$ is described in terms of a template table called the \textbf{R-table} of possible edge pixel orientations. The computation of the additional parameters s and $\theta$ is then accomplished by straightforward transformations to this table. The key to generalizing the Hough algorithm to arbitrary shapes is the use of directional information. Given any shape and a fixed reference point on it, instead of a parametric curve, the information provided by the boundary pixels is stored in the form of the R-table in the transform stage. For every edge point on the test image, the properties of the point are looked up on the R-table and reference point is retrieved and the appropriate cell in a matrix called the \textbf{Accumulator matrix} is incremented. The cell with maximum 'votes' in the \textbf{Accumulator matrix} can be a possible point of existence of fixed reference of the object in the test image.
+
+%\textbf{Parameters of the Hough space:} $C = (x_C; y_C)$: location of the center mass, $s$ - scale, $\alpha$ - contour orientation angle.
+%
+%\textbf{Model learning (design).} For every pair of allowed discrete values $s_d$, $\alpha_g$ of scale and orientation, create a table $R(s_d, \alpha_g) = [ r( \varphi ), \varphi ]$, where for each%edge $x_B$ with edge direction $\varphi$ the pair:%$[r(\varphi)=x_B - C, \varphi]$ is stored.
 
 
 \begin{figure}[h]
@@ -218,47 +222,42 @@ An example can be observed on Figure \ref{fig:edge_chain_labs}.
   \caption{Example of GHT contour detection.}
 \end{figure}
 
+\subsection{Building the R-Table}
+
+First a reference point $y$ inside the shape should be chosen. Next for each boundary point $x$ $\phi(x)$, gradient direction and r = y – x should be computed. $r$ should be stored as a function of $\phi$. Notice that each index of $\phi$ may have many values of $r$. One can either store the co-ordinate differences between the fixed reference and the edge point $((x_c – x_{ij}),( y_c - y_{ij}))$ or as the radial distance and the angle between them $(r_{ij} , \alpha_{ij})$. Having done this for each point, the R-table will fully represent the template object. Also, since the generation phase is invertible, it may be used to localise object occurrences at other places in the image.
+
+
+\subsection{Object localization}
+
+For each edge pixel x in the image, the gradient $\phi$  should be found and all the corresponding points $x+r$ in the accumulator array A (initialized to a maximum size of the image)should be incremented, where $r$ is a table entry indexed by $\phi$, i.e., $r(\phi)$. These entry points provide each possible position for the reference point. Although some bogus points may be calculated, given that the object exists in the image, a maximum will occur at the reference point. Maxima in A correspond to possible instances of the shape.
+
 \section{Project implementation}
+
 
 For implementation we chose the Python programming language with appropriate OpenCV bindings. OpenCV-Python provides good integration with the NumPy library for efficient matrix operations which we will use when necessary.
 We plan to first prepare a prototype using existing solutions found in OpenCV, then incrementally implement our own components.
 
+The implementation can be roughly divided into three parts: GMT model creation, GHT shape detection and edge extraction algorithm.
 
-The general algorithm we will implement is as follows:
+Edge extraction algorithm includes the following steps:
+
 \begin{enumerate}
-	\item Apply Gaussian filter to smooth the image in order to remove the noise (image).
-    \item Find the intensity gradients of the image using a convolution-based operator. We will use Sobel and Scharr operators. At each point in the image we will obtain the corresponding gradient vector(intensity gradients).
+	\item Apply Gaussian filter the image. This will smooth the image and reduce the noise (image).
+    \item Find the intensity gradients of the image using a convolution-based operator. Particularly Sobel and Scharr operators are used in this step. At each point in the image we will obtain the corresponding gradient vector(intensity gradients).
 
-    \item No-Maximum suppression will be applied because after applying gradient calculation, the edge extracted from the gradient value is still quite blurred. Non-maximum suppression will help to suppress all the gradient values to 0 except the local maximal, which indicates location with the sharpest change of intensity value.(filtered gradients)
-
-    \item Perform edge chain detection by the hysteresis method.(edge pixels) 
-
-    \item Use the Generalized Hough Transform for contour localization. We will first use a picture of a bottle for model learning. We will then apply GHT to find contours of said bottle.
+    \item Apply non-maximum suppression as upon applying gradient calculation, the extracted edge is still quite blurred. Non-maximum suppression will help to suppress all the gradient values to 0 except the local maxima, which indicate locations with the sharpest change of intensity value.(filtered gradients)
+	    \item Perform edge chain detection by the hysteresis method. This step will filter the small edges(edge pixels) 
 \end{enumerate}
 
-%++++++++++++++++++++++++++++++++++++++++
-% References section will be created automatically 
-% with inclusion of "thebibliography" environment
-% as it shown below. See text starting with line
-% \begin{thebibliography}{99}
-% Note: with this approach it is YOUR responsibility to put them in order
-% of appearance.
+First extracted edges will be used in generalized Hough transform(GHT) to create a contour model of a bottle.
 
-%\begin{thebibliography}{99}
-%
-%\bibitem{melissinos}
-%A.~C. Melissinos and J. Napolitano, \textit{Experiments in Modern Physics},
-%(Academic Press, New York, 2003).
-%
-%\bibitem{Cyr}
-%N.\ Cyr, M.\ T$\hat{e}$tu, and M.\ Breton,
-%% "All-optical microwave frequency standard: a proposal,"
-%IEEE Trans.\ Instrum.\ Meas.\ \textbf{42}, 640 (1993).
-%
-%\bibitem{Wiki} \emph{Expected value},  available at
-%\texttt{http://en.wikipedia.org/wiki/Expected\_value}.
-%
-%\end{thebibliography}
 
+In order to detect the contour in a test image, edge extraction will have be performed on the test image. 
+
+
+\section{Results}
+
+
+\section{Conclusions}
 
 \end{document}
