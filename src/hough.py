@@ -111,16 +111,14 @@ def hough_detect(rtable, img, on_progress=None):
                     (indicies >= np_zero) & (indicies < np_max)
                 ).all(axis=1)
                 indicies = indicies[valid_indicies]
-                for ix in indicies:
-                    acc[scale_idx, rot_idx, ix[0], ix[1]] += 1
-                #acc[scale_idx, rot_idx, indicies[:, 0], indicies[:, 1]] += 1
+                acc[scale_idx, rot_idx, indicies[:, 0], indicies[:, 1]] += 1
 
     on_progress(100)
     acc = gaussian_filter(acc, 2)
-    max_coordinates = peak_local_max(acc, min_distance=2, num_peaks=10)
+    max_scale_idx, max_rot_idx, cx, cy = \
+        np.unravel_index(acc.argmax(), acc.shape)
     return HoughDetectionResult(
         acc,
         [
             (scales[max_scale_idx], rotations[max_rot_idx], cx, cy)
-            for max_scale_idx, max_rot_idx, cx, cy in max_coordinates
         ])
