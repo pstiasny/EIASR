@@ -235,7 +235,10 @@ For each edge pixel x in the image, the gradient $\phi$  should be found and all
 \section{Project implementation}
 
 
-For implementation we chose the Python programming language with appropriate OpenCV bindings. OpenCV-Python provides good integration with the NumPy library for efficient matrix operations which we will use when necessary.
+For implementation we chose the Python programming language and used the NumPy library
+for efficient matrix operations.  We also used scikit and scikit-image for required
+matrix operations not found in NumPy.  Slow hotspots in implemented algorithms
+were vectorized using the aftermentioned libraries.
 
 The implementation can be roughly divided into three parts: GMT model creation, GHT shape detection and edge extraction algorithm.
 
@@ -274,5 +277,13 @@ In order to detect the contour in a test image, edge extraction will have be per
 \end{figure}
 
 \section{Conclusions}
+
+In our tests we succesfully craeted a model of a bottle shape based on a cropped image and detected
+said bottle in several test images.
+
+We found out that the number of possible discrete values of rotation and scaling greatly affects
+the quality of results but also performance.  We had to tune the number of scalings to just 6 to
+achieve acceptable runtime, which caused some instances to not be detected.
+
 
 \end{document}
