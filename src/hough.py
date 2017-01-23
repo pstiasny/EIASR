@@ -1,17 +1,14 @@
 from collections import defaultdict, namedtuple
 from math import cos, sin, ceil, sqrt, pi
 
-#from numba import jit
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
-from skimage.feature import peak_local_max
 
 
 NDIR = 64
 
 bucket_width = 2*pi/NDIR
 bias = bucket_width * 0.5
-#@jit
 def discrete_direction(alpha):
     alpha_plus = alpha + bias
     return int((alpha_plus / bucket_width) % NDIR)
@@ -49,27 +46,6 @@ HoughDetectionResult = namedtuple(
     ['accumulator', 'candidates'])
 
 
-#@jit
-def _inner_loop(rtable, acc, w, h, angle, x, y, rot_idx, rot):
-    c, s = np.cos(rot), np.sin(rot)
-    Rot = np.array([[c, -s], [s, c]])
-
-    alpha = (angle + rot) % (2 * pi)
-    rindex = discrete_direction(alpha)
-    for r in rtable[rindex]:
-        r = np.dot(Rot, r)
-        for scale_idx, scale in enumerate(scales):
-            r_scaled = scale * r
-            center_x = int(x + r_scaled[0])
-            if not (0 <= center_x < w):
-                continue
-            center_y = int(y + r_scaled[1])
-            if not (0 <= center_y < h):
-                continue
-            acc[scale_idx, rot_idx, center_x, center_y] += 1
-
-
-#@profile
 def hough_detect(rtable, img, on_progress=None):
     w = img.w
     h = img.h
