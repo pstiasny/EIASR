@@ -91,6 +91,7 @@ class HoughShapeDetector():
 
 			scale, angle, cx, cy = cand
 			angle *= 180/np.pi
+                        angle = (angle + 180) % 360
 			tmpPoints = np.asarray(self.shapePts, dtype=np.float64)
 			tmpPoints *= scale
 			tmpPoints = tmpPoints.astype(np.int64)
