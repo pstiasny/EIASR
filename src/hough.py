@@ -1,14 +1,20 @@
 from collections import defaultdict, namedtuple
 from math import cos, sin, ceil, sqrt, pi
 
+#from numba import jit
 import numpy as np
 from scipy.ndimage.filters import gaussian_filter
 from skimage.feature import peak_local_max
 
 
-def discrete_direction(ndir, alpha):
-    bucket_width = 2*pi/ndir
-    return int((alpha / bucket_width + 0.5 * bucket_width) % ndir)
+NDIR = 64
+
+bucket_width = 2*pi/NDIR
+bias = bucket_width * 0.5
+#@jit
+def discrete_direction(alpha):
+    alpha_plus = alpha + bias
+    return int((alpha_plus / bucket_width) % NDIR)
 
 
 scales = [2**i for i in range(-3, 3)]
@@ -33,7 +39,7 @@ def hough_learn(img):
             continue
         rx = int(center[0] - x)
         ry = int(center[1] - y)
-        phi = discrete_direction(64, img.angles[x, y])
+        phi = discrete_direction(img.angles[x, y])
         rtable[phi].append((rx, ry))
     return rtable
 
@@ -43,35 +49,73 @@ HoughDetectionResult = namedtuple(
     ['accumulator', 'candidates'])
 
 
+#@jit
+def _inner_loop(rtable, acc, w, h, angle, x, y, rot_idx, rot):
+    c, s = np.cos(rot), np.sin(rot)
+    Rot = np.array([[c, -s], [s, c]])
+
+    alpha = (angle + rot) % (2 * pi)
+    rindex = discrete_direction(alpha)
+    for r in rtable[rindex]:
+        r = np.dot(Rot, r)
+        for scale_idx, scale in enumerate(scales):
+            r_scaled = scale * r
+            center_x = int(x + r_scaled[0])
+            if not (0 <= center_x < w):
+                continue
+            center_y = int(y + r_scaled[1])
+            if not (0 <= center_y < h):
+                continue
+            acc[scale_idx, rot_idx, center_x, center_y] += 1
+
+
+#@profile
 def hough_detect(rtable, img, on_progress=None):
-    acc = np.zeros((len(scales), len(rotations), img.w, img.h))
-    num_pixels = img.w * img.h
+    w = img.w
+    h = img.h
+    acc = np.zeros((len(scales), len(rotations), w, h))
+    num_pixels = w * h
+    np_zero = np.array([0, 0])
+    np_max = np.array([w, h])
+
+    np_rtable = {k: np.array(rtable[k]) for k in xrange(NDIR)}
+    np_scales = np.array(scales)
+    RMxs = []
+    for rot_idx, rot in enumerate(rotations):
+        c, s = np.cos(rot), np.sin(rot)
+        Rot = np.array([[c, -s], [s, c]])
+        RMxs.append(Rot)
 
     for (x, y), mag in np.ndenumerate(img.magnitudes):
         if mag < 1:
             continue
+        pt = np.array([x, y])
+        angle = img.angles[x, y]
 
         if on_progress is not None:
-            on_progress(100 * (x * img.h + y) / num_pixels)
+            on_progress(100 * (x * h + y) / num_pixels)
 
         for rot_idx, rot in enumerate(rotations):
-            c, s = np.cos(rot), np.sin(rot)
-            Rot = np.array([[c, -s], [s, c]])
+            Rot = RMxs[rot_idx]
 
-            alpha = (img.angles[x, y] + rot) % (2 * pi)
-            rindex = discrete_direction(64, alpha)
-            for r in rtable[rindex]:
-                r = np.dot(Rot, r)
-                for scale_idx, scale in enumerate(scales):
-                    r_scaled = scale * r
-                    center_x = int(x + r_scaled[0])
-                    if not (0 <= center_x < img.w):
-                        continue
-                    center_y = int(y + r_scaled[1])
-                    if not (0 <= center_y < img.h):
-                        continue
-                    acc[scale_idx, rot_idx, center_x, center_y] += 1
+            alpha = (angle + rot) % (2 * pi)
+            rindex = discrete_direction(alpha)
+            rs = np_rtable[rindex]
+            if len(rs) == 0:
+                continue
+            rotated_rs = np.dot(Rot, rs.transpose()).transpose()
+            for scale_idx, scale in enumerate(scales):
+                scaled_rs = (rotated_rs * scale).astype(int)
+                indicies = scaled_rs + pt
+                valid_indicies = (
+                    (indicies >= np_zero) & (indicies < np_max)
+                ).all(axis=1)
+                indicies = indicies[valid_indicies]
+                for ix in indicies:
+                    acc[scale_idx, rot_idx, ix[0], ix[1]] += 1
+                #acc[scale_idx, rot_idx, indicies[:, 0], indicies[:, 1]] += 1
 
+    on_progress(100)
     acc = gaussian_filter(acc, 2)
     max_coordinates = peak_local_max(acc, min_distance=2, num_peaks=10)
     return HoughDetectionResult(

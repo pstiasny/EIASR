@@ -85,6 +85,8 @@ class HoughShapeDetector():
 	def createTempateOverlay(self, img):
 		
 		shapes = []
+                w, h = img.gray.shape
+                
 		for cand in self.result[1]:
 
 			scale, angle, cx, cy = cand
@@ -97,7 +99,10 @@ class HoughShapeDetector():
 			tmpPoints[:,1] += cy
 
 			tmpPoints = [rotatePoint((cx,cy),p,angle) for p in tmpPoints]
-			tmpPoints = [tp for tp in tmpPoints if self.pointInsideShape(tp, img.gray.shape)]
+                        tmpPoints = [
+                            (x, y) for x, y in tmpPoints
+                            if 0 <= x < w and 0 <= y < h
+                        ]
 			shapes.append(tmpPoints)
 
 		overlay = np.zeros(img.gray.shape)
@@ -109,8 +114,6 @@ class HoughShapeDetector():
 	
 		return marked_img
 
-	def pointInsideShape(self, point, shape):
-		return (point[0] >= 0 and point[0]<shape[0] and point[1] >= 0 and point[1]<shape[1])
 
 
 def imgToQImg(img):
