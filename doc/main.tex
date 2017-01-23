@@ -5,6 +5,7 @@
 \usepackage{amsmath}  % improve math presentation
 \usepackage{graphicx} % takes care of graphic including machinery
 \usepackage{subfig}
+\usepackage{subfloat}
 \usepackage[margin=1in,letterpaper]{geometry} % decreases margins
 \usepackage{cite} % takes care of citations
 \usepackage[final]{hyperref} % adds hyper links inside the generated pdf file
@@ -235,7 +236,6 @@ For each edge pixel x in the image, the gradient $\phi$  should be found and all
 
 
 For implementation we chose the Python programming language with appropriate OpenCV bindings. OpenCV-Python provides good integration with the NumPy library for efficient matrix operations which we will use when necessary.
-We plan to first prepare a prototype using existing solutions found in OpenCV, then incrementally implement our own components.
 
 The implementation can be roughly divided into three parts: GMT model creation, GHT shape detection and edge extraction algorithm.
 
@@ -257,6 +257,21 @@ In order to detect the contour in a test image, edge extraction will have be per
 
 \section{Results}
 
+\begin{figure}[!ht]
+\centering
+\begin{tabular}{cccc}
+\subfloat[Input test image]{\includegraphics[width = 0.3\textwidth]{bottle.png}} &
+\subfloat[Grayscale image]{\includegraphics[width = 0.3\textwidth]{results/bottle-gray}} &
+\subfloat[Gradient angles]{\includegraphics[width = 0.3\textwidth]{results/bottle-gradient-angles}} \\
+
+\subfloat[Gradient magnitudes]{\includegraphics[width = 0.3\textwidth]{results/bottle-gradient-magnitudes}} &
+\subfloat[Non-maxima thinned edges]{\includegraphics[width = 0.3\textwidth]{results/bottle-thinned}} &
+\subfloat[Hysteresis chained edges]{\includegraphics[width = 0.3\textwidth]{results/bottle-thinned_hyst}} \\
+
+\end{tabular}
+\caption{Attack results}
+\label{fig:attacks}
+\end{figure}
 
 \section{Conclusions}
 
